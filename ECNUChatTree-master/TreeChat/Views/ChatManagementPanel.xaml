@@ -24,8 +24,21 @@
              SelectedItem="{Binding SelectedChat, Mode=TwoWay}">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <TextBlock Text="{Binding TreeTitle}"
-                           Margin="5,2"/>
+                    <Grid Margin="5,2" Height="30">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="30"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding TreeTitle}" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Width="30" Height="30" Content="⋯" FontSize="16" Background="Transparent" BorderThickness="0">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="编辑名称" Command="{Binding DataContext.EditChatTitleCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"/>
+                                    <MenuItem Header="删除" Command="{Binding DataContext.DeleteChatCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"/>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
+                    </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
