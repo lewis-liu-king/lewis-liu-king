@@ -36,8 +36,10 @@ namespace TreeChat.ViewModels
 
         public RelayCommand CreateNewChat { get; }
         public RelayCommand OpenSettingsCommand { get; }
+        public RelayCommand DeleteChatCommand { get; }
 
         public event Action<ChatTree>? SelectedChatChanged;
+        public event Action? ChatTitleUpdated;
 
         public ChatManagementPanelVM()
         {
@@ -48,6 +50,7 @@ namespace TreeChat.ViewModels
             LoadChats();
             CreateNewChat = new RelayCommand(ExecuteCreateNewChat);
             OpenSettingsCommand = new RelayCommand(OpenSettings);
+            DeleteChatCommand = new RelayCommand(ExecuteDeleteChat, CanDeleteChat);
         }
 
         private void ExecuteCreateNewChat(object? parameter)
@@ -89,6 +92,48 @@ namespace TreeChat.ViewModels
         public void SaveChats()
         {
             _persistenceService.Save(_chatList.ToList());
+        }
+
+        /// <summary>
+        /// 判断是否可以删除当前选中的聊天
+        /// </summary>
+        private bool CanDeleteChat(object? parameter)
+        {
+            return SelectedChat != null;
+        }
+
+        /// <summary>
+        /// 删除当前选中的聊天
+        /// </summary>
+        private void ExecuteDeleteChat(object? parameter)
+        {
+            if (SelectedChat == null) return;
+
+            int index = _chatList.IndexOf(SelectedChat);
+            _chatList.Remove(SelectedChat);
+
+            if (_chatList.Count > 0)
+            {
+                SelectedChat = _chatList[Math.Min(index, _chatList.Count - 1)];
+            }
+            else
+            {
+                ExecuteCreateNewChat(null);
+            }
+        }
+
+        /// <summary>
+        /// 更新当前选中聊天的标题
+        /// </summary>
+        /// <param name="newTitle">新标题</param>
+        public void UpdateSelectedChatTitle(string newTitle)
+        {
+            if (SelectedChat != null && !string.IsNullOrWhiteSpace(newTitle))
+            {
+                SelectedChat.TreeTitle = newTitle;
+                ChatTitleUpdated?.Invoke();
+                SaveChats();
+            }
         }
     }
 }

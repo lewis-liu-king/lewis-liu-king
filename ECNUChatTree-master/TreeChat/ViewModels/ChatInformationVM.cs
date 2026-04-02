@@ -18,6 +18,8 @@ namespace TreeChat.ViewModels
     {
         private string? _userMessage;
         private string? _aiReply;
+        private readonly ChatTitleGenerator _titleGenerator = new ChatTitleGenerator();
+        private bool _hasGeneratedTitle = false;
 
         public string? UserMessage
         {
@@ -50,6 +52,7 @@ namespace TreeChat.ViewModels
             set
             {
                 _selectedNode = value;
+                _hasGeneratedTitle = false;
                 if(value != null)
                 {
                     UserMessage = value.Node.UserMessage.Content;
@@ -60,6 +63,7 @@ namespace TreeChat.ViewModels
         }
 
         public event Action<TreeNodeVM, TreeNodeVM>? ChatTreeChanged;
+        public event Action<string>? RequestUpdateChatTitle;
 
         public ChatInformationVM()
         {
@@ -86,6 +90,13 @@ namespace TreeChat.ViewModels
                 TreeNodeVM newNodeVM = SelectedNode.AddChild(newNode);
                 ChatTreeChanged?.Invoke(SelectedNode, newNodeVM);
                 SelectedNode = newNodeVM;
+
+                if (!_hasGeneratedTitle)
+                {
+                    string title = _titleGenerator.GenerateTitle(InputMessage);
+                    RequestUpdateChatTitle?.Invoke(title);
+                    _hasGeneratedTitle = true;
+                }
 
                 InputMessage = string.Empty;
 

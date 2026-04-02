@@ -29,6 +29,7 @@ namespace TreeChat.ViewModels
             ChatManagementPanelVM.SelectedChatChanged += ChangeNodeVMTree;
             TreeVisualizationVM.SelectedNodeChanged += (nodeVM) => { ChatInformationVM.SelectedNode = nodeVM; };
             ChatInformationVM.ChatTreeChanged += TreeVisualizationVM.UpdateTree;
+            ChatInformationVM.RequestUpdateChatTitle += ChatManagementPanelVM.UpdateSelectedChatTitle;
         }
 
         private void ChangeNodeVMTree(ChatTree tree)

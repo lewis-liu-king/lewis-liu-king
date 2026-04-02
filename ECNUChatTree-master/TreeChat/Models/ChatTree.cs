@@ -1,13 +1,35 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace TreeChat.Models
 {
     /// <summary>
     /// 聊天树结构，包含根节点和当前节点等信息
     /// </summary>
-    public class ChatTree
+    public class ChatTree : INotifyPropertyChanged
     {
         public ChatTreeNode RootNode { get; }
         public ChatTreeNode CurrentNode { get; private set; }
-        public string TreeTitle { get; set; } = "新对话";
+        private string _treeTitle = "新对话";
+        public string TreeTitle
+        {
+            get => _treeTitle;
+            set
+            {
+                if (_treeTitle != value)
+                {
+                    _treeTitle = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
         public ChatTree(string? systemPrompt = null)
         {
