@@ -20,6 +20,7 @@
             <Button Content="◀" Command="{Binding NavigatePreviousCommand}" Width="25" Margin="2,0" ToolTip="上一个"/>
             <Button Content="▶" Command="{Binding NavigateNextCommand}" Width="25" Margin="2,0" ToolTip="下一个"/>
             <TextBlock Text="{Binding MatchInfo}" VerticalAlignment="Center" Margin="5,0" Foreground="Gray"/>
+            <Button Content="删除节点" Command="{Binding DeleteNodeCommand}" Width="70" Margin="10,0" ToolTip="删除选中的节点"/>
         </StackPanel>
 
         <!-- 树画布 -->
