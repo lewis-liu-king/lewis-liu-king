@@ -23,6 +23,8 @@ namespace TreeChat.ViewModels
                 if (value != null && _selectedNode != value)
                     SelectedNodeChanged?.Invoke(value);
                 SetProperty(ref _selectedNode, value);
+                // 当选中节点变化时，重新评估删除命令的可执行性
+                DeleteNodeCommand.RaiseCanExecuteChanged();
             }
         }
 
