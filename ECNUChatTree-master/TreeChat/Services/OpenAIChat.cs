@@ -1,0 +1,81 @@
+using Newtonsoft.Json;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using TreeChat.Models;
+
+namespace TreeChat.Services
+{
+    /// <summary>
+    /// 提供与大模型服务器交互的服务类
+    /// </summary>
+    public class OpenAIChat
+    {
+        private readonly HttpClient _httpClient;
+
+        public static OpenAIChat Instance { get; private set; } = new OpenAIChat();
+
+        public OpenAIChat()
+        {
+            _httpClient = new HttpClient();
+            _httpClient.DefaultRequestHeaders.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
+            UpdateAuthentication();
+        }
+
+        /// <summary>
+        /// 更新HttpClient的认证头，配置变更后调用此方法
+        /// </summary>
+        public void UpdateAuthentication()
+        {
+            _httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiConfig.ApiKey);
+        }
+
+        /// <summary>
+        /// 调用AI接口（传入上下文）
+        /// </summary>
+        /// <param name="context">完整上下文</param>
+        public async Task<string> CallAiApi(List<ChatMessage> context)
+        {
+            List<OpenAIMessage> tempList = new List<OpenAIMessage>();
+            foreach (ChatMessage message in context)
+            {
+                OpenAIMessage item = new OpenAIMessage { role = message.Role, content = message.Content };
+                tempList.Add(item);
+            }
+
+            try
+            {
+                UpdateAuthentication();
+
+                var request = new ChatCompletionRequest
+                {
+                    model = ApiConfig.ModelName,
+                    temperature = ApiConfig.Temperature,
+                    top_p = ApiConfig.TopP,
+                    top_k = ApiConfig.TopK,
+                    messages = tempList
+                };
+
+                var jsonContent = new StringContent(
+                    JsonConvert.SerializeObject(request),
+                    Encoding.UTF8,
+                    "application/json");
+
+                var response = await _httpClient.PostAsync(ApiConfig.ApiEndpoint, jsonContent);
+                response.EnsureSuccessStatusCode();
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                dynamic responseData = JsonConvert.DeserializeObject(responseJson);
+                return responseData.choices[0].message.content.ToString().Trim();
+            }
+            catch (Exception ex)
+            {
+                var error = ErrorInfo.FromException(ex);
+                NotificationService.Instance.ShowError(error);
+                return error.UserMessage;
+            }
+        }
+    }
+}

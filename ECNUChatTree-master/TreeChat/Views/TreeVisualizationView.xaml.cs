@@ -1,0 +1,359 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using TreeChat.Models;
+using TreeChat.Services;
+using TreeChat.ViewModels;
+
+namespace TreeChat.Views
+{
+    public partial class TreeVisualizationView : UserControl
+    {
+        private TreeVisualizationVM? _vm;
+
+        private Dictionary<int, FrameworkElement> _nodeElements = new Dictionary<int, FrameworkElement>();
+
+        //用于平移的变量
+        private Point _lastMousePosition;
+        private bool _isDragging = false;
+
+        //用于缩放的变量
+        private double _zoomFactor = 1.0;
+        private const double ZoomStep = 0.1;
+        private Point _zoomCenter;
+
+        //选中节点
+        public static readonly DependencyProperty SelectedNodeProperty =
+            DependencyProperty.Register("SelectedNode", typeof(TreeNodeVM), typeof(TreeVisualizationView),
+                new PropertyMetadata(null, OnSelectedNodeChanged));
+
+        public TreeNodeVM SelectedNode
+        {
+            get => (TreeNodeVM)GetValue(SelectedNodeProperty);
+            set => SetValue(SelectedNodeProperty, value);
+        }
+
+        public TreeVisualizationView()
+        {
+            InitializeComponent();
+
+            DataContextChanged += TreeVisualizationView_DataContextChanged;
+        }
+
+        private void TreeVisualizationView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // 取消旧VM的订阅
+            if (e.OldValue is TreeVisualizationVM oldVm)
+            {
+                oldVm.CanvasPropertyChanged -= RefreshView;
+            }
+
+            // 订阅新VM的事件
+            if (e.NewValue is TreeVisualizationVM newVm)
+            {
+                _vm = newVm;
+                newVm.CanvasPropertyChanged += RefreshView;
+            }
+        }
+
+        private static void OnSelectedNodeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is TreeVisualizationView view && e.NewValue is TreeNodeVM node)
+            {
+                // 同步到VM（双向绑定保障）
+                if (view._vm != null && view._vm.SelectedNode != node)
+                {
+                    view._vm.SelectedNode = node;
+                }
+                // 本地高亮
+                view.HighlightSelectedNode(node);
+            }
+        }
+
+        // 鼠标拖动平移功能
+        private void ScrollViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (IsClickOnNodeElement(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                _zoomCenter = e.GetPosition(treeCanvas);
+                e.Handled = true;
+                return;
+            }
+
+            _isDragging = true;
+            _lastMousePosition = e.GetPosition(scrollViewer);
+            scrollViewer.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void ScrollViewer_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isDragging && scrollViewer.IsMouseCaptured)
+            {
+                Point currentPos = e.GetPosition(scrollViewer);
+                double deltaX = currentPos.X - _lastMousePosition.X;
+                double deltaY = currentPos.Y - _lastMousePosition.Y;
+
+                scrollViewer.ScrollToHorizontalOffset(
+                    scrollViewer.HorizontalOffset - deltaX);
+                scrollViewer.ScrollToVerticalOffset(
+                    scrollViewer.VerticalOffset - deltaY);
+
+                _lastMousePosition = currentPos;
+                e.Handled = true;
+            }
+        }
+
+        private void ScrollViewer_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_isDragging)
+            {
+                _isDragging = false;
+                scrollViewer.ReleaseMouseCapture();
+                e.Handled = true;
+            }
+
+            if (scrollViewer.IsMouseCaptured)
+            {
+                scrollViewer.ReleaseMouseCapture();
+            }
+        }
+
+        // 鼠标滚轮缩放功能
+        private void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                // 计算缩放中心点
+                var mousePosition = e.GetPosition(treeCanvas);
+                var transform = treeCanvas.RenderTransform as MatrixTransform ?? new MatrixTransform();
+                var matrix = transform.Matrix;
+
+                // 缩放比例
+                double zoomDelta = e.Delta > 0 ? ZoomStep : -ZoomStep;
+                double newZoomFactor = Math.Max(0.2, Math.Min(_zoomFactor + zoomDelta, 5.0));
+
+                // 计算平移偏移，使缩放中心保持在鼠标位置
+                double zoomRatio = newZoomFactor / _zoomFactor;
+                double dx = (1 - zoomRatio) * (mousePosition.X * matrix.M11 + matrix.OffsetX);
+                double dy = (1 - zoomRatio) * (mousePosition.Y * matrix.M22 + matrix.OffsetY);
+
+                // 应用新缩放
+                _zoomFactor = newZoomFactor;
+                matrix.ScaleAt(zoomRatio, zoomRatio, mousePosition.X, mousePosition.Y);
+                matrix.Translate(dx * (1 / zoomRatio), dy * (1 / zoomRatio)); // 调整平移
+
+                treeCanvas.RenderTransform = new MatrixTransform(matrix);
+
+                e.Handled = true;
+            }
+        }
+
+        private void RefreshView()
+        {
+            RenderTree();
+        }
+
+        private void RenderTree()
+        {
+            if(treeCanvas == null || _vm == null || _vm.RootNode == null)
+                return;
+
+            treeCanvas.Children.Clear();
+            _nodeElements.Clear();
+
+            // 先绘制连接线（在节点下方）
+            DrawConnections(_vm.RootNode);
+
+            // 再绘制节点
+            DrawNodes(_vm.RootNode);
+
+            // 设置画布大小
+            double maxWidth = _nodeElements.Values
+                .Select(el => Canvas.GetLeft(el) + el.ActualWidth)
+                .DefaultIfEmpty(800).Max();
+
+            double maxHeight = _nodeElements.Values
+                .Select(el => Canvas.GetTop(el) + el.ActualHeight)
+                .DefaultIfEmpty(600).Max();
+
+            treeCanvas.Width = maxWidth + 100; // 添加边距
+            treeCanvas.Height = maxHeight + 100;
+        }
+
+        private void DrawConnections(TreeNodeVM rootNode)
+        {
+            if (rootNode.Children.Count == 0)
+                return;
+
+            // 父节点底部中心点
+            double parentCenterX = rootNode.X + TreeNodeVM.WIDTH / 2;
+            double parentBottomY = rootNode.Y + TreeNodeVM.HEIGHT;
+
+            foreach (var child in rootNode.Children)
+            {
+                // 子节点顶部中心点
+                double childCenterX = child.X + TreeNodeVM.WIDTH / 2;
+                double childTopY = child.Y;
+
+                // 绘制连接线
+                var line = new Line
+                {
+                    X1 = parentCenterX,
+                    Y1 = parentBottomY,
+                    X2 = childCenterX,
+                    Y2 = childTopY,
+                    Stroke = Brushes.Black,
+                    StrokeThickness = 1.5
+                };
+                treeCanvas.Children.Add(line);
+
+                // 递归绘制子节点的连接线
+                DrawConnections(child);
+            }
+        }
+
+        private void DrawNodes(TreeNodeVM rootNode)
+        {
+            var nodeBorder = new Border
+            {
+                Width = TreeNodeVM.WIDTH,
+                Height = TreeNodeVM.HEIGHT,
+                Background = GetNodeBackground(rootNode),
+                BorderBrush = GetNodeBorderBrush(rootNode),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Cursor = Cursors.Hand,
+                ToolTip = rootNode.FullContent
+            };
+
+            var textBlock = new TextBlock
+            {
+                Text = rootNode.DisplayContent,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(3),
+                FontSize = 11
+            };
+            nodeBorder.Child = textBlock;
+
+            var currentNode = rootNode;
+            nodeBorder.PreviewMouseLeftButtonDown += (s, e) =>
+            {
+                SelectedNode = currentNode;
+                e.Handled = true;
+            };
+
+            Canvas.SetLeft(nodeBorder, rootNode.X);
+            Canvas.SetTop(nodeBorder, rootNode.Y);
+
+            treeCanvas.Children.Add(nodeBorder);
+            _nodeElements[rootNode.ID] = nodeBorder;
+
+            foreach (var child in rootNode.Children)
+                DrawNodes(child);
+        }
+
+        /// <summary>
+        /// 根据节点状态获取背景颜色
+        /// </summary>
+        private Brush GetNodeBackground(TreeNodeVM node)
+        {
+            if (node.IsMatched)
+                return new SolidColorBrush(Color.FromRgb(255, 255, 150));
+            if (node.HasReply)
+                return new SolidColorBrush(Color.FromRgb(212, 237, 218));
+            return new SolidColorBrush(Color.FromRgb(220, 230, 240));
+        }
+
+        /// <summary>
+        /// 根据节点状态获取边框颜色
+        /// </summary>
+        private Brush GetNodeBorderBrush(TreeNodeVM node)
+        {
+            if (node.IsMatched)
+                return Brushes.Orange;
+            if (node.HasReply)
+                return Brushes.Green;
+            return Brushes.Gray;
+        }
+
+        /// <summary>
+        /// 搜索框键盘事件（Enter触发搜索）
+        /// </summary>
+        private void SearchBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && _vm != null)
+            {
+                _vm.SearchCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+
+        private int _lastSelectedNodeId = -1;
+
+        private void HighlightSelectedNode(TreeNodeVM node)
+        {
+            // 重置上一个选中节点的颜色
+            if (_lastSelectedNodeId >= 0 && _nodeElements.TryGetValue(_lastSelectedNodeId, out var lastElement) && lastElement is Border lastBorder)
+            {
+                var lastNodeVM = FindNodeVMById(_vm?.RootNode, _lastSelectedNodeId);
+                if (lastNodeVM != null)
+                {
+                    lastBorder.BorderBrush = GetNodeBorderBrush(lastNodeVM);
+                    lastBorder.Background = GetNodeBackground(lastNodeVM);
+                }
+            }
+
+            // 高亮新选中的节点
+            if (_nodeElements.TryGetValue(node.ID, out var selectedElement) && selectedElement is Border selectedBorder)
+            {
+                selectedBorder.BorderBrush = Brushes.Blue;
+                selectedBorder.Background = new SolidColorBrush(Color.FromRgb(255, 243, 205));
+                _lastSelectedNodeId = node.ID;
+            }
+        }
+
+        private TreeNodeVM? FindNodeVMById(TreeNodeVM? node, int id)
+        {
+            if (node == null) return null;
+            if (node.ID == id) return node;
+            foreach (var child in node.Children)
+            {
+                var found = FindNodeVMById(child, id);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        private bool IsClickOnNodeElement(DependencyObject clickedElement)
+        {
+            if (clickedElement == null) return false;
+
+            // 向上遍历可视化树，查找是否是节点的Border
+            while (clickedElement != null)
+            {
+                // 判断当前元素是否是节点集合中的Border
+                if (clickedElement is Border border && _nodeElements.Values.Contains(border))
+                {
+                    return true;
+                }
+                // 继续向上找父元素
+                clickedElement = VisualTreeHelper.GetParent(clickedElement);
+            }
+            return false;
+        }
+    }
+}
