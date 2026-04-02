@@ -91,6 +91,21 @@ namespace TreeChat.ViewModels
             return false;
         }
 
+        /// <summary>
+        /// 从子节点列表中移除指定的子节点
+        /// </summary>
+        /// <param name="childNode">要移除的子节点</param>
+        /// <returns>是否成功移除</returns>
+        public bool RemoveChild(TreeNodeVM childNode)
+        {
+            if (_children.Remove(childNode))
+            {
+                Node.RemoveChildNode(childNode.Node);
+                return true;
+            }
+            return false;
+        }
+
         public TreeNodeVM(ChatTreeNode node, TreeNodeVM? parentNode)
         {
             Node = node;

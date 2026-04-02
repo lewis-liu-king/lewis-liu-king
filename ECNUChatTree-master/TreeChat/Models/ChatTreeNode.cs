@@ -88,5 +88,15 @@ namespace TreeChat.Models
         {
             ReplyMessage = replyMessage;
         }
+
+        /// <summary>
+        /// 从子节点列表中移除指定的子节点
+        /// </summary>
+        /// <param name="childNode">要移除的子节点</param>
+        /// <returns>是否成功移除</returns>
+        public bool RemoveChildNode(ChatTreeNode childNode)
+        {
+            return ChildNodes.Remove(childNode);
+        }
     }
 }

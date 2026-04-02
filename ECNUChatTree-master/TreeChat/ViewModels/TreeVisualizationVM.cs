@@ -48,6 +48,7 @@ namespace TreeChat.ViewModels
         public RelayCommand SearchCommand { get; }
         public RelayCommand NavigateNextCommand { get; }
         public RelayCommand NavigatePreviousCommand { get; }
+        public RelayCommand DeleteNodeCommand { get; }
 
         public event Action? CanvasPropertyChanged;
         public event Action<TreeNodeVM>? SelectedNodeChanged;
@@ -57,6 +58,7 @@ namespace TreeChat.ViewModels
             SearchCommand = new RelayCommand(SearchNodes);
             NavigateNextCommand = new RelayCommand(NavigateNext, _ => _matchedNodes.Count > 0);
             NavigatePreviousCommand = new RelayCommand(NavigatePrevious, _ => _matchedNodes.Count > 0);
+            DeleteNodeCommand = new RelayCommand(DeleteNode, CanDeleteNode);
         }
 
         public void SetTree(TreeNodeVM rootNode)
@@ -141,6 +143,45 @@ namespace TreeChat.ViewModels
             node.IsMatched = false;
             foreach (var child in node.Children)
                 ClearAllMatches(child);
+        }
+
+        /// <summary>
+        /// 判断当前选中的节点是否可以删除
+        /// </summary>
+        /// <param name="parameter">命令参数</param>
+        /// <returns>是否可以删除</returns>
+        private bool CanDeleteNode(object? parameter)
+        {
+            // 根节点不能删除，没有选中节点也不能删除
+            return SelectedNode != null && SelectedNode != RootNode;
+        }
+
+        /// <summary>
+        /// 删除当前选中的节点
+        /// </summary>
+        /// <param name="parameter">命令参数</param>
+        private void DeleteNode(object? parameter)
+        {
+            if (SelectedNode == null || SelectedNode == RootNode) return;
+
+            var nodeToDelete = SelectedNode;
+            var parentNode = nodeToDelete.ParentNode;
+
+            if (parentNode != null)
+            {
+                // 从父节点中移除当前节点
+                parentNode.RemoveChild(nodeToDelete);
+
+                // 更新树布局
+                TreeLayoutService.LayoutTree(RootNode!);
+                CanvasPropertyChanged?.Invoke();
+
+                // 选择父节点作为新的选中节点
+                SelectedNode = parentNode;
+
+                // 更新命令的可用性
+                DeleteNodeCommand.RaiseCanExecuteChanged();
+            }
         }
     }
 }
