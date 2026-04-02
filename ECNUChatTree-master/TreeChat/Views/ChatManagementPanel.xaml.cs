@@ -26,9 +26,27 @@ namespace TreeChat.Views
         {
             if (sender is Button button && button.ContextMenu != null)
             {
+                var listBoxItem = FindParent<ListBoxItem>(button);
+                if (listBoxItem != null)
+                {
+                    listBoxItem.IsSelected = true;
+                }
+                
                 button.ContextMenu.PlacementTarget = button;
                 button.ContextMenu.IsOpen = true;
             }
+        }
+
+        private T? FindParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
+            
+            if (parentObject == null) return null;
+            
+            if (parentObject is T parent)
+                return parent;
+            else
+                return FindParent<T>(parentObject);
         }
     }
 }
