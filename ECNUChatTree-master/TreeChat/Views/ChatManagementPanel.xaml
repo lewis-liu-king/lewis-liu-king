@@ -36,7 +36,7 @@
                         <TextBlock Grid.Column="0" Text="{Binding TreeTitle}" VerticalAlignment="Center"/>
                         <Button Grid.Column="1" Width="30" Height="30" Content="⋯" FontSize="16" Background="Transparent" BorderThickness="0" Click="MoreButton_Click">
                             <Button.ContextMenu>
-                                <ContextMenu x:Name="ItemContextMenu">
+                                <ContextMenu>
                                     <MenuItem Header="编辑名称" Command="{Binding DataContext.EditChatTitleCommand, Source={StaticResource ProxyElement}}"/>
                                     <MenuItem Header="删除" Command="{Binding DataContext.DeleteChatCommand, Source={StaticResource ProxyElement}}"/>
                                 </ContextMenu>
