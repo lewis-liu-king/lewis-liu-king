@@ -21,5 +21,14 @@ namespace TreeChat.Views
         {
             InitializeComponent();
         }
+
+        private void MoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.ContextMenu != null)
+            {
+                button.ContextMenu.PlacementTarget = button;
+                button.ContextMenu.IsOpen = true;
+            }
+        }
     }
 }
